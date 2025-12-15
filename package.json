@@ -1,0 +1,13 @@
+{
+  "name": "giurisprudenza-scraper",
+  "version": "1.0.0",
+  "description": "Sistema automatico di scraping e visualizzazione giurisprudenza",
+  "scripts": {
+    "start": "python src/api_server.py",
+    "dev": "python src/api_server.py"
+  },
+  "dependencies": {
+    "flask": "^3.0.0",
+    "flask-cors": "^4.0.0"
+  }
+}
