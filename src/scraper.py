@@ -22,64 +22,71 @@ def make_driver():
 
 def scrape_jurisprudence():
     driver = make_driver()
-    wait = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, 60)  # Increased timeout to 60 seconds
     
     try:
         print("Apertura banca dati giurisprudenza...")
         driver.get("https://bancadatigiurisprudenza.giustiziatributaria.gov.it/ricerca")
-        time.sleep(2)  # Wait for page to fully load
+        time.sleep(5)  # Wait for page to fully load
+        
+        # Wait for the page to be interactive
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        time.sleep(3)
         
         print("Selezione anno...")
-        # Select year 2025 using ID selector
-        anno_select = wait.until(EC.presence_of_element_located(
-            (By.ID, "Form.ControlInput2")
-        ))
-        Select(anno_select).select_by_value("2025")
-        time.sleep(1)
+        # Try to select year using direct element access
+        try:
+            anno_select = driver.find_element(By.ID, "Form.ControlInput2")
+            Select(anno_select).select_by_value("2025")
+        except:
+            print("Tentativo alternativo per anno...")
+            # Alternative: using XPath
+            anno_select = wait.until(EC.presence_of_element_located(
+                (By.XPATH, "//select[@id='Form.ControlInput2']")
+            ))
+            Select(anno_select).select_by_value("2025")
+        time.sleep(2)
         
         print("Selezione esito favorevole...")
-        # Select favorable outcome using ID selector
-        esito_select = wait.until(EC.presence_of_element_located(
-            (By.ID, "Form.ControlInput9")
-        ))
-        Select(esito_select).select_by_visible_text("Favorevole al contribuente")
-        time.sleep(1)
+        try:
+            esito_select = driver.find_element(By.ID, "Form.ControlInput9")
+            Select(esito_select).select_by_visible_text("Favorevole al contribuente")
+        except:
+            print("Tentativo alternativo per esito...")
+            esito_select = wait.until(EC.presence_of_element_located(
+                (By.XPATH, "//select[@id='Form.ControlInput9']")
+            ))
+            Select(esito_select).select_by_visible_text("Favorevole al contribuente")
+        time.sleep(2)
         
         print("Avvio ricerca...")
-        # Click search button
         ricerca_btn = wait.until(EC.element_to_be_clickable(
             (By.XPATH, "//button[contains(text(),'Ricerca')]")
         ))
         ricerca_btn.click()
-        time.sleep(3)  # Wait for results to load
+        time.sleep(5)  # Wait for results to load
         
         print("Attesa risultati...")
-        # Wait for results table to appear
         wait.until(EC.presence_of_element_located((By.XPATH, "//table")))
-        time.sleep(2)
+        time.sleep(3)
         
         print("Apertura prima sentenza...")
-        # Click on first result link
         first_link = wait.until(EC.element_to_be_clickable(
             (By.XPATH, "(//a[contains(@href,'dettaglio')])[1]")
         ))
         first_link.click()
-        time.sleep(3)  # Wait for detail page to load
+        time.sleep(5)  # Wait for detail page to load
         
         print("Estrazione testo...")
         # Extract text from the detail page
-        text_block = wait.until(EC.presence_of_element_located(
-            (By.XPATH, "//div[contains(@class,'sentenza') or contains(@class,'container') or contains(@class,'content')]")
-        ))
+        testo = driver.find_element(By.TAG_NAME, "body").text
         
-        testo = text_block.text
-        if not testo or len(testo.strip()) < 100:
-            # Try alternative selectors
-            testo = driver.find_element(By.TAG_NAME, "body").text
+        if not testo or len(testo.strip()) < 50:
+            raise Exception("Testo estratto troppo corto o vuoto")
         
         data = {
             "timestamp": datetime.now().isoformat(),
-            "testo": testo,
+            "testo": testo[:500],  # Save first 500 chars for testing
             "status": "success"
         }
         
@@ -94,13 +101,13 @@ def scrape_jurisprudence():
         return True
         
     except TimeoutException as e:
-        print(f"Errore: Timeout nell'attesa elemento - {str(e)}")
+        print(f"Errore: Timeout - {str(e)}")
         error_data = {
             "timestamp": datetime.now().isoformat(),
             "status": "error",
             "error_type": "TimeoutException",
             "error": str(e),
-            "current_url": driver.current_url
+            "current_url": driver.current_url if driver else "N/A"
         }
         os.makedirs("data", exist_ok=True)
         with open("data/sentenza_oggi.json", "w", encoding="utf-8") as f:
@@ -114,7 +121,7 @@ def scrape_jurisprudence():
             "status": "error",
             "error_type": "NoSuchElementException",
             "error": str(e),
-            "current_url": driver.current_url
+            "current_url": driver.current_url if driver else "N/A"
         }
         os.makedirs("data", exist_ok=True)
         with open("data/sentenza_oggi.json", "w", encoding="utf-8") as f:
